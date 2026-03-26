@@ -56,6 +56,7 @@ def register():
 
 
 @app.post("/auth/login")
+@app.post("/login")
 def login():
     data = request.get_json()
     username = data.get("username", "")
@@ -66,7 +67,7 @@ def login():
         return jsonify({"msg": "Invalid username or password"}), 401
 
     token = create_access_token(identity=username)
-    return jsonify(access_token=token, token_type="bearer"), 200
+    return jsonify(token=token), 200
 
 
 @app.get("/me")
@@ -134,25 +135,32 @@ def delete_task(task_id):
 
 # ─── Integration กับ API เพื่อน ──────────────────────
 
-@app.get("/friend/tasks")
-@jwt_required()
-def get_friend_tasks():
-    # login ด้วย service account ของเราที่เพื่อนรู้จัก
+def _get_friend_token():
+    """Login to friend API and return bearer token, or None on failure."""
     try:
-        login_resp = req.post(
+        resp = req.post(
             f"{FRIEND_BASE_URL}/login",
             json={"username": "student", "password": "HeyYoMyfriend"},
             timeout=(3, 30),
         )
+        if resp.status_code == 200:
+            return resp.json().get("token"), None
+        return None, (jsonify({"msg": "Login to friend API failed"}), resp.status_code)
     except req.RequestException as e:
-        return jsonify({"msg": f"Cannot reach friend API: {e}"}), 500
+        return None, (jsonify({"msg": f"Cannot reach friend API: {e}"}), 500)
 
-    if login_resp.status_code != 200:
-        return jsonify({"msg": "Login to friend API failed"}), login_resp.status_code
 
-    friend_token = login_resp.json().get("token")
+@app.get("/external-tasks")
+@jwt_required()
+def get_external_tasks():
+    user = get_jwt_identity()
+    my_tasks = TASKS.get(user, [])
+
+    friend_token, err = _get_friend_token()
+    if err:
+        return err
+
     headers = {"Authorization": f"Bearer {friend_token}"}
-
     try:
         tasks_resp = req.get(
             f"{FRIEND_BASE_URL}/tasks",
@@ -162,28 +170,22 @@ def get_friend_tasks():
     except req.RequestException as e:
         return jsonify({"msg": f"Cannot reach friend API: {e}"}), 500
 
-    return jsonify(tasks_resp.json()), tasks_resp.status_code
+    try:
+        external_tasks = tasks_resp.json()
+    except ValueError:
+        external_tasks = []
+
+    return jsonify(my_tasks=my_tasks, external_tasks=external_tasks), 200
 
 
 @app.post("/friend/tasks")
 @jwt_required()
 def create_friend_task():
-    # login ด้วย service account ของเราที่เพื่อนรู้จัก
-    try:
-        login_resp = req.post(
-            f"{FRIEND_BASE_URL}/login",
-            json={"username": "student", "password": "HeyYoMyfriend"},
-            timeout=(3, 30),
-        )
-    except req.RequestException as e:
-        return jsonify({"msg": f"Cannot reach friend API: {e}"}), 500
+    friend_token, err = _get_friend_token()
+    if err:
+        return err
 
-    if login_resp.status_code != 200:
-        return jsonify({"msg": "Login to friend API failed"}), login_resp.status_code
-
-    friend_token = login_resp.json().get("token")
     headers = {"Authorization": f"Bearer {friend_token}"}
-    
     data = request.get_json() or {}
 
     try:

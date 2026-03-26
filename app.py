@@ -26,6 +26,9 @@ USERS = {
 TASKS: dict[str, list] = {
     "waytid": [
         {"id": 1, "title": "First task", "status": "pending"}
+    ],
+    "กังฟู": [
+        {"id": 1, "title": "you are gay now", "status": "pending"}
     ]
 }
 

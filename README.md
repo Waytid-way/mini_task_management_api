@@ -7,7 +7,7 @@ REST API สำหรับจัดการ Task พร้อมระบบ A
 
 ## 🌐 Deployed URL
 
-> *(อัปเดตหลัง deploy)* เช่น `https://your-api.onrender.com`
+> [https://mini-task-management-api-pu60.onrender.com](https://mini-task-management-api-pu60.onrender.com)
 
 ---
 
